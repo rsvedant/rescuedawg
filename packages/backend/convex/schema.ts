@@ -101,6 +101,13 @@ export default defineSchema({
 		dogViewFeedId: v.optional(v.string()), // Links to videoFeeds.feedId
 		dogViewRoomName: v.optional(v.string()), // LiveKit room name
 		dogViewStartTime: v.optional(v.number()), // When feed started for incident
+
+		// SAMPLE Assessment (Medical Protocol)
+		callTranscript: v.optional(v.string()), // Full call transcript
+		callDuration: v.optional(v.number()), // Call duration in seconds
+		callEndedAt: v.optional(v.number()), // Timestamp when call ended
+		sampleAssessmentId: v.optional(v.id("sampleAssessments")), // Link to SAMPLE assessment
+		sampleAssessmentCompleted: v.optional(v.boolean()), // Whether SAMPLE was completed
 	})
 		.index("by_status", ["status"])
 		.index("by_time", ["callReceived"])
@@ -110,6 +117,85 @@ export default defineSchema({
 			searchField: "description",
 			filterFields: ["incidentType", "status"],
 		}),
+
+	// SAMPLE Medical Assessments
+	sampleAssessments: defineTable({
+		incidentId: v.id("incidents"),
+		patientStatus: v.union(
+			v.literal("conscious"),
+			v.literal("unconscious"),
+			v.literal("partially_responsive")
+		),
+
+		// S - Signs & Symptoms
+		signsSymptoms: v.object({
+			patientReported: v.string(),
+			observedSigns: v.array(v.string()),
+		}),
+
+		// A - Allergies
+		allergies: v.object({
+			known: v.array(v.string()),
+			unknown: v.boolean(),
+		}),
+
+		// M - Medications
+		medications: v.object({
+			current: v.array(
+				v.object({
+					name: v.string(),
+					lastTaken: v.optional(v.string()),
+				})
+			),
+			unknown: v.boolean(),
+		}),
+
+		// P - Pre-existing conditions
+		preExistingConditions: v.object({
+			conditions: v.array(v.string()),
+			unknown: v.boolean(),
+		}),
+
+		// L - Last oral intake
+		lastOralIntake: v.object({
+			food: v.optional(v.string()),
+			time: v.optional(v.string()),
+			unknown: v.boolean(),
+		}),
+
+		// E - Events leading up
+		eventsLeadingUp: v.object({
+			description: v.string(),
+			activity: v.optional(v.string()),
+			previousOccurrence: v.boolean(),
+		}),
+
+		// Optional focused checks
+		focusedChecks: v.optional(
+			v.object({
+				fastScreen: v.optional(
+					v.object({
+						faceSymmetry: v.string(),
+						armStrength: v.string(),
+						speechClarity: v.string(),
+					})
+				),
+				bloodSugarClue: v.optional(v.string()),
+				heatExertionClue: v.optional(v.string()),
+			})
+		),
+
+		// Full transcript
+		transcript: v.string(),
+
+		// Assessment summary
+		summary: v.string(),
+
+		// Timestamps
+		assessmentStarted: v.number(),
+		assessmentCompleted: v.number(),
+		createdAt: v.number(),
+	}).index("by_incident", ["incidentId"]),
 
 	// Department Communication
 	departmentMessages: defineTable({

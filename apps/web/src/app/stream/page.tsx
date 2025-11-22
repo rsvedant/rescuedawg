@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useAction } from "convex/react";
 import { api } from "@rescuedawg/backend/convex/_generated/api";
+import type { Id } from "@rescuedawg/backend/convex/_generated/dataModel";
 import type { AnalysisResponse, Emergency } from "@rescuedawg/backend/convex/videoAnalysis";
 import { Video, Square, Play, AlertCircle } from "lucide-react";
 import { Room, LocalVideoTrack } from "livekit-client";
@@ -28,6 +29,8 @@ export default function StreamPage() {
 	const deviceIdRef = useRef<string | null>(null);
 	// Stop further CV requests after first high-confidence detection
 	const detectionLockedRef = useRef<boolean>(false);
+	// Emergency state for visual feedback
+	const [isEmergencyActive, setIsEmergencyActive] = useState(false);
 	// Cache emergency context for later Vapi transient overrides
 	const vapiContextRef = useRef<{
 		feedId: string;
@@ -48,9 +51,48 @@ export default function StreamPage() {
 	const prepareCall = useAction(api.vapi.prepareEmergencyContext);
 	const generateToken = useAction(api.livekit.generateToken);
 
+	// SAMPLE protocol functions
+	const generateSamplePrompt = useAction(api.vapiSample.generateSamplePrompt);
+	const storeSampleAssessment = useMutation(api.vapiSample.storeSampleAssessment);
+	const updateCallTranscript = useMutation(api.vapiSample.updateCallTranscript);
+
 	// Initialize VAPI instance
 	const vapiRef = useRef<Vapi | null>(null);
 	const vapiListenersSetup = useRef(false);
+	const [vapiTranscript, setVapiTranscript] = useState<string>("");
+	const vapiCallStartTimeRef = useRef<number>(0);
+	const currentIncidentIdRef = useRef<string | null>(null);
+
+	// Handle SAMPLE assessment submission
+	const handleSampleReport = async (parameters: any) => {
+		if (!currentIncidentIdRef.current) {
+			console.error("[SAMPLE] No incident ID to store assessment");
+			return;
+		}
+
+		try {
+			addDebugLog("💾 Storing SAMPLE assessment...");
+			await storeSampleAssessment({
+				incidentId: currentIncidentIdRef.current as Id<"incidents">,
+				patientStatus: parameters.patientStatus,
+				signsSymptoms: parameters.signsSymptoms,
+				allergies: parameters.allergies,
+				medications: parameters.medications,
+				preExistingConditions: parameters.preExistingConditions,
+				lastOralIntake: parameters.lastOralIntake,
+				eventsLeadingUp: parameters.eventsLeadingUp,
+				focusedChecks: parameters.focusedChecks,
+				transcript: parameters.transcript,
+				summary: parameters.summary,
+				assessmentStarted: vapiCallStartTimeRef.current,
+				assessmentCompleted: Date.now(),
+			});
+			addDebugLog("✅ SAMPLE assessment stored successfully");
+		} catch (error: any) {
+			console.error("[SAMPLE] Failed to store assessment:", error);
+			addDebugLog(`❌ Failed to store SAMPLE: ${error.message}`);
+		}
+	};
 
 	useEffect(() => {
 		// Initialize Vapi with public key
@@ -71,16 +113,40 @@ export default function StreamPage() {
 			// Setup event listeners ONCE during initialization
 			vapiRef.current.on('call-start', () => {
 				console.log('[VAPI] Call started');
-				addDebugLog("✅ VAPI call connected");
+				addDebugLog("✅ VAPI call connected - SAMPLE assessment beginning");
+				vapiCallStartTimeRef.current = Date.now();
+				setVapiTranscript("");
 			});
 
-			vapiRef.current.on('call-end', () => {
+			vapiRef.current.on('call-end', async () => {
 				console.log('[VAPI] Call ended');
-				addDebugLog("📴 VAPI call ended");
-				setStatus("Call completed");
+				addDebugLog("📴 VAPI call ended - saving transcript");
+				setStatus("Call completed - saving data");
+
+				// Save transcript if we have one
+				if (currentIncidentIdRef.current && vapiCallStartTimeRef.current > 0) {
+					const callDuration = Math.floor((Date.now() - vapiCallStartTimeRef.current) / 1000);
+					try {
+						await updateCallTranscript({
+							incidentId: currentIncidentIdRef.current as Id<"incidents">,
+							transcript: vapiTranscript || "No transcript captured",
+							callDuration,
+							callEndedAt: Date.now(),
+						});
+						addDebugLog("✅ Transcript saved to incident");
+					} catch (error: any) {
+						console.error("[VAPI] Failed to save transcript:", error);
+						addDebugLog(`❌ Failed to save transcript: ${error.message}`);
+					}
+				}
+
+				// Reset emergency visual state
+				setIsEmergencyActive(false);
+
 				// Reset lock after call ends
 				setTimeout(() => {
 					detectionLockedRef.current = false;
+					currentIncidentIdRef.current = null;
 				}, 5000);
 			});
 
@@ -96,14 +162,38 @@ export default function StreamPage() {
 
 			vapiRef.current.on('message', (message: any) => {
 				console.log('[VAPI] Message:', message);
+
+				// Capture transcripts
 				if (message.type === 'transcript' && message.transcript) {
-					addDebugLog(`💬 ${message.role}: ${message.transcript}`);
+					const line = `${message.role}: ${message.transcript}`;
+					addDebugLog(`💬 ${line}`);
+					setVapiTranscript(prev => prev ? `${prev}\n${line}` : line);
+				}
+
+				// Handle SAMPLE function calls
+				if (message.type === 'function-call' && message.functionCall) {
+					console.log('[VAPI] Function call received:', message.functionCall);
+					addDebugLog(`🔧 Function call: ${message.functionCall.name}`);
+
+					if (message.functionCall.name === 'submitSampleReport') {
+						handleSampleReport(message.functionCall.parameters);
+					}
+
+					// Handle endCall - AI requests to terminate the call
+					if (message.functionCall.name === 'endCall') {
+						addDebugLog("📞 AI requested call termination");
+						setTimeout(() => {
+							if (vapiRef.current) {
+								vapiRef.current.stop();
+								addDebugLog("✅ Call ended by AI");
+							}
+						}, 1000); // Small delay to let the AI finish speaking
+					}
 				}
 			});
 
 			vapiRef.current.on('error', (error: any) => {
 				console.error('[VAPI] Error:', error);
-				// Handle empty error objects
 				const errorMsg = error?.message || error?.error || JSON.stringify(error) || 'Unknown error';
 				addDebugLog(`❌ VAPI error: ${errorMsg}`);
 			});
@@ -121,8 +211,8 @@ export default function StreamPage() {
 				try {
 					vapiRef.current.stop();
 					console.log('[VAPI] Cleanup complete');
-				} catch (e) {
-					// Ignore errors if no call is active
+				} catch (e: any) {
+					console.warn('[VAPI] Cleanup error:', e?.message || e);
 				}
 			}
 		};
@@ -239,6 +329,7 @@ export default function StreamPage() {
 
 					// Use transient assistant configuration with emergency-specific context
 					const config: any = {
+						name: `Fall-${Date.now()}`,
 						transcriber: {
 							provider: "deepgram",
 							model: "nova-2",
@@ -294,10 +385,6 @@ export default function StreamPage() {
 									},
 								},
 							],
-						},
-						voice: {
-							provider: "11labs",
-							voiceId: process.env.NEXT_PUBLIC_VAPI_VOICE_ID || "rachel",
 						},
 						firstMessage: emergencyContext.firstMessage,
 						// Pass metadata for webhook to extract incidentId
@@ -414,12 +501,15 @@ export default function StreamPage() {
 			await room.connect(process.env.NEXT_PUBLIC_LIVEKIT_URL!, token);
 			console.log("[LiveKit] Dog cam connected to room");
 
-			// Enable webcam
-			await room.localParticipant.setCameraEnabled(true);
+			// Enable webcam with back camera (environment)
+			// Use "environment" for back camera, "user" for front camera
+			await room.localParticipant.setCameraEnabled(true, {
+				facingMode: "environment", // Use back camera
+			});
 			const videoTrack = room.localParticipant.videoTrackPublications.values().next().value?.track;
 			if (videoTrack && videoTrack instanceof LocalVideoTrack) {
 				setDogCamTrack(videoTrack);
-				console.log("[LiveKit] Dog cam video track published");
+				console.log("[LiveKit] Dog cam video track published (back camera)");
 			}
 
 			setIsStreaming(true);
@@ -586,43 +676,42 @@ export default function StreamPage() {
 						setIsAnalyzing(false);
 					}
 					
-					addDebugLog("🚨 High-confidence emergency detected. Initiating VAPI call...");
-					setStatus("Emergency detected – initiating call");
-					
+					addDebugLog("🚨 High-confidence emergency detected. Initiating SAMPLE assessment call...");
+					setStatus("Emergency detected – initiating SAMPLE assessment");
+
+					// Activate emergency visual state (red background)
+					setIsEmergencyActive(true);
+
 					vapiContextRef.current = {
 						feedId,
 						emergency: { ...highConfidence, detectedAt: Date.now() },
 					};
 
-					// Initiate VAPI web call with transient assistant
+					// Store incident ID for later use
+					currentIncidentIdRef.current = result.analysis.incidentId;
+
+					// Initiate VAPI web call with SAMPLE protocol
 					try {
-						// Prepare emergency object without extra fields
-						const emergencyForCall = {
-							type: highConfidence.type,
-							confidence: highConfidence.confidence,
-							description: highConfidence.description,
-							severity: highConfidence.severity,
-						};
-
-						// Get emergency context with system prompt from backend
-						addDebugLog("📝 Preparing emergency context...");
-						const emergencyContext = await prepareCall({
-							incidentId: result.analysis.incidentId,
-							emergency: emergencyForCall,
-							feedId,
-						});
-
-						addDebugLog("📞 Starting VAPI call...");
-						setStatus("Emergency call - please speak");
-
 						// Use the initialized VAPI instance
 						if (!vapiRef.current) {
 							addDebugLog("❌ VAPI not initialized");
 							return;
 						}
 
-						// Use transient assistant configuration with emergency-specific context
+						// Generate SAMPLE protocol prompt
+						addDebugLog("📝 Generating SAMPLE assessment prompt...");
+						const samplePrompt = await generateSamplePrompt({
+							incidentId: result.analysis.incidentId as Id<"incidents">,
+							incidentType: highConfidence.type,
+							location: "Location detected from camera feed", // TODO: Get actual location
+						});
+
+						addDebugLog("📞 Starting SAMPLE assessment call...");
+						setStatus("SAMPLE assessment - please speak");
+
+						// Use transient assistant configuration with SAMPLE protocol
 						const config: any = {
+							name: `SAMPLE-${result.analysis.incidentId}`,
 							transcriber: {
 								provider: "deepgram",
 								model: "nova-2",
@@ -630,74 +719,147 @@ export default function StreamPage() {
 							},
 							model: {
 								provider: "openai",
-								model: "gpt-4",
+								model: "gpt-4o",
 								messages: [
 									{
 										role: "system",
-										content: emergencyContext.systemPrompt,
+										content: samplePrompt.systemPrompt,
 									},
 								],
 								tools: [
 									{
 										type: "function",
 										function: {
-											name: "submitReport",
-											description: "Submit collected emergency information to dispatch",
+											name: "endCall",
+											description: "End the emergency assessment call after completing the SAMPLE report",
+											parameters: {
+												type: "object",
+												properties: {},
+											},
+										},
+									},
+									{
+										type: "function",
+										function: {
+											name: "submitSampleReport",
+											description: "Submit the completed SAMPLE assessment to the system",
 											parameters: {
 												type: "object",
 												properties: {
-													locationConfirmed: {
+													patientStatus: {
 														type: "string",
-														description: "Exact address confirmed by caller",
+														enum: ["conscious", "unconscious", "partially_responsive"],
 													},
-													peopleAffected: {
-														type: "number",
-														description: "Number of people affected or injured",
+													signsSymptoms: {
+														type: "object",
+														properties: {
+															patientReported: { type: "string" },
+															observedSigns: { type: "array", items: { type: "string" } },
+														},
+														required: ["patientReported", "observedSigns"],
 													},
-													currentStatus: {
-														type: "string",
-														description: "Current status: worsening, stable, or improving",
+													allergies: {
+														type: "object",
+														properties: {
+															known: { type: "array", items: { type: "string" } },
+															unknown: { type: "boolean" },
+														},
+														required: ["known", "unknown"],
 													},
-													immediateHazards: {
-														type: "array",
-														items: { type: "string" },
-														description: "List of immediate hazards for responders",
+													medications: {
+														type: "object",
+														properties: {
+															current: {
+																type: "array",
+																items: {
+																	type: "object",
+																	properties: {
+																		name: { type: "string" },
+																		lastTaken: { type: "string" },
+																	},
+																},
+															},
+															unknown: { type: "boolean" },
+														},
+														required: ["current", "unknown"],
 													},
-													additionalInfo: {
-														type: "string",
-														description: "Any additional critical information",
+													preExistingConditions: {
+														type: "object",
+														properties: {
+															conditions: { type: "array", items: { type: "string" } },
+															unknown: { type: "boolean" },
+														},
+														required: ["conditions", "unknown"],
 													},
+													lastOralIntake: {
+														type: "object",
+														properties: {
+															food: { type: "string" },
+															time: { type: "string" },
+															unknown: { type: "boolean" },
+														},
+														required: ["unknown"],
+													},
+													eventsLeadingUp: {
+														type: "object",
+														properties: {
+															description: { type: "string" },
+															activity: { type: "string" },
+															previousOccurrence: { type: "boolean" },
+														},
+														required: ["description", "previousOccurrence"],
+													},
+													focusedChecks: {
+														type: "object",
+														properties: {
+															fastScreen: {
+																type: "object",
+																properties: {
+																	faceSymmetry: { type: "string" },
+																	armStrength: { type: "string" },
+																	speechClarity: { type: "string" },
+																},
+															},
+															bloodSugarClue: { type: "string" },
+															heatExertionClue: { type: "string" },
+														},
+													},
+													transcript: { type: "string" },
+													summary: { type: "string" },
 												},
 												required: [
-													"locationConfirmed",
-													"peopleAffected",
-													"currentStatus",
-													"immediateHazards",
+													"patientStatus",
+													"signsSymptoms",
+													"allergies",
+													"medications",
+													"preExistingConditions",
+													"lastOralIntake",
+													"eventsLeadingUp",
+													"transcript",
+													"summary",
 												],
 											},
 										},
 									},
 								],
 							},
-							voice: {
-								provider: "11labs",
-								voiceId: process.env.NEXT_PUBLIC_VAPI_VOICE_ID || "rachel",
-							},
-							firstMessage: emergencyContext.firstMessage,
-							// Pass metadata for webhook to extract incidentId
+							firstMessage: samplePrompt.firstMessage,
+							// Pass metadata
 							metadata: {
-								incidentId: emergencyContext.incidentId,
-								emergencyType: emergencyForCall.type,
-								confidence: emergencyForCall.confidence,
+								incidentId: result.analysis.incidentId,
+								emergencyType: highConfidence.type,
+								confidence: highConfidence.confidence,
+								protocol: "SAMPLE",
 							},
 						};
 
-						// Start call with transient configuration
+						// Start call with SAMPLE configuration
 						vapiRef.current.start(config);
-						addDebugLog("✅ VAPI call started with transient config");
+						addDebugLog("✅ SAMPLE assessment call started");
 					} catch (vapiError: any) {
 						console.error("[VAPI] Call preparation/start error:", vapiError);
 						addDebugLog(`❌ VAPI error: ${vapiError.message || 'Unknown error'}`);
+						currentIncidentIdRef.current = null;
 						// Don't reset lock here - let call-end event handle it
 					}
 				}
@@ -717,12 +879,39 @@ export default function StreamPage() {
 	};
 
 	return (
-		<div className="min-h-screen bg-gray-900 text-white p-8">
+		<div className={`min-h-screen text-white p-8 transition-colors duration-500 ${
+			isEmergencyActive
+				? "bg-red-900/40 animate-pulse"
+				: "bg-gray-900"
+		}`}>
+			{/* MASSIVE END CALL BUTTON - Fixed at top center */}
+			{currentIncidentIdRef.current && (
+				<div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999]">
+					<button
+						onClick={() => {
+							if (vapiRef.current) {
+								addDebugLog("🛑 Manually ending VAPI call...");
+								vapiRef.current.stop();
+								setIsEmergencyActive(false);
+							}
+						}}
+						className="px-12 py-6 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-2xl font-black transition-all animate-pulse shadow-2xl border-4 border-white transform hover:scale-105"
+					>
+						<span>🛑 END CALL NOW 🛑</span>
+					</button>
+				</div>
+			)}
+
 			<div className="max-w-6xl mx-auto">
 				<div className="mb-8">
 					<h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
 						<Video className="w-8 h-8" />
 						Security Camera Feed Monitor
+						{isEmergencyActive && (
+							<span className="ml-4 text-red-500 font-bold animate-pulse">
+								🚨 EMERGENCY DETECTED
+							</span>
+						)}
 					</h1>
 					<p className="text-gray-400">
 						Monitor external security camera with AI-powered emergency detection
@@ -955,6 +1144,38 @@ export default function StreamPage() {
 							</div>
 						)}
 					</div>
+
+					{/* VAPI Call Control */}
+					{currentIncidentIdRef.current && (
+						<div className="bg-gray-800 rounded-lg p-6">
+							<h3 className="text-lg font-semibold mb-3">SAMPLE Assessment Call</h3>
+							<div className="space-y-3">
+								<div className="flex items-center justify-between">
+									<div className="flex items-center gap-3">
+										<div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+										<span className="text-sm font-medium">Call Active</span>
+									</div>
+									<button
+										onClick={() => {
+											if (vapiRef.current) {
+												addDebugLog("🛑 Manually ending VAPI call...");
+												vapiRef.current.stop();
+												// Reset emergency state
+												setIsEmergencyActive(false);
+											}
+										}}
+										className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+									>
+										<span>End Call</span>
+									</button>
+								</div>
+								<div className="bg-gray-900 rounded p-3 text-xs text-gray-400">
+									<p>Incident ID: {currentIncidentIdRef.current}</p>
+									{status && <p className="mt-1">Status: {status}</p>}
+								</div>
+							</div>
+						</div>
+					)}
 
 					{/* Debug Log */}
 					{isStreaming && debugLog.length > 0 && (

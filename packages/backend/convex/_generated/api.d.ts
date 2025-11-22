@@ -21,6 +21,7 @@ import type * as presence from "../presence.js";
 import type * as privateData from "../privateData.js";
 import type * as todos from "../todos.js";
 import type * as vapi from "../vapi.js";
+import type * as vapiSample from "../vapiSample.js";
 import type * as videoAlerts from "../videoAlerts.js";
 import type * as videoAnalysis from "../videoAnalysis.js";
 import type * as videoFeeds from "../videoFeeds.js";
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   privateData: typeof privateData;
   todos: typeof todos;
   vapi: typeof vapi;
+  vapiSample: typeof vapiSample;
   videoAlerts: typeof videoAlerts;
   videoAnalysis: typeof videoAnalysis;
   videoFeeds: typeof videoFeeds;
