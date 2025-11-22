@@ -40,7 +40,6 @@ export function VapiWebCall({
 	const callStartTimeRef = useRef<number>(0);
 
 	// Backend mutations/actions
-	const generateSamplePrompt = useAction(api.vapiSample.generateSamplePrompt);
 	const storeSampleAssessment = useMutation(api.vapiSample.storeSampleAssessment);
 	const updateCallTranscript = useMutation(api.vapiSample.updateCallTranscript);
 
@@ -202,11 +201,6 @@ export function VapiWebCall({
 			} else {
 				// Generate SAMPLE protocol prompt
 				console.log("[VAPI] Generating SAMPLE protocol prompt...");
-				const samplePrompt = await generateSamplePrompt({
-					incidentId: emergencyContext.incidentId as Id<"incidents">,
-					incidentType: emergencyContext.emergency.type,
-					location: emergencyContext.location || "Unknown location",
-				});
 
 				console.log("[VAPI] SAMPLE prompt generated");
 
@@ -216,12 +210,6 @@ export function VapiWebCall({
 					model: {
 						provider: "openai",
 						model: "gpt-4o",
-						messages: [
-							{
-								role: "system",
-								content: samplePrompt.systemPrompt,
-							},
-						],
 						tools: [
 							{
 								type: "function",
@@ -352,9 +340,6 @@ export function VapiWebCall({
 						model: "nova-2",
 						language: "en",
 					},
-
-					// First message
-					firstMessage: samplePrompt.firstMessage,
 
 					// Name for identification
 					name: `SAMPLE-${emergencyContext.incidentId}`,

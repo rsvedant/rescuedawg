@@ -700,11 +700,6 @@ export default function StreamPage() {
 
 						// Generate SAMPLE protocol prompt
 						addDebugLog("📝 Generating SAMPLE assessment prompt...");
-						const samplePrompt = await generateSamplePrompt({
-							incidentId: result.analysis.incidentId as Id<"incidents">,
-							incidentType: highConfidence.type,
-							location: "Location detected from camera feed", // TODO: Get actual location
-						});
 
 						addDebugLog("📞 Starting SAMPLE assessment call...");
 						setStatus("SAMPLE assessment - please speak");
@@ -721,10 +716,6 @@ export default function StreamPage() {
 								provider: "openai",
 								model: "gpt-4o",
 								messages: [
-									{
-										role: "system",
-										content: samplePrompt.systemPrompt,
-									},
 								],
 								tools: [
 									{
@@ -843,7 +834,6 @@ export default function StreamPage() {
 									},
 								],
 							},
-							firstMessage: samplePrompt.firstMessage,
 							// Pass metadata
 							metadata: {
 								incidentId: result.analysis.incidentId,
