@@ -1,40 +1,23 @@
 "use client";
 
-import SignInForm from "@/components/sign-in-form";
-import SignUpForm from "@/components/sign-up-form";
-import UserMenu from "@/components/user-menu";
-import { api } from "@rescuedawg/backend/convex/_generated/api";
-import {
-	Authenticated,
-	AuthLoading,
-	Unauthenticated,
-	useQuery,
-} from "convex/react";
-import { useState } from "react";
+import { SalesAssistant } from "@/components/dashboard/sales-assistant";
+import { RedirectToSignIn, SignedIn } from "@daveyplate/better-auth-ui";
 
 export default function DashboardPage() {
-	const [showSignIn, setShowSignIn] = useState(false);
-	const privateData = useQuery(api.privateData.get);
-
 	return (
 		<>
-			<Authenticated>
-				<div>
-					<h1>Dashboard</h1>
-					<p>privateData: {privateData?.message}</p>
-					<UserMenu />
+			<RedirectToSignIn />
+			<SignedIn>
+				<div className="container mx-auto max-w-7xl px-4 py-6">
+					<div className="mb-6">
+						<h1 className="text-3xl font-bold tracking-tight">Sales Dashboard</h1>
+						<p className="text-muted-foreground">
+							Track your performance and AI-powered insights
+						</p>
+					</div>
+					<SalesAssistant />
 				</div>
-			</Authenticated>
-			<Unauthenticated>
-				{showSignIn ? (
-					<SignInForm onSwitchToSignUp={() => setShowSignIn(false)} />
-				) : (
-					<SignUpForm onSwitchToSignIn={() => setShowSignIn(true)} />
-				)}
-			</Unauthenticated>
-			<AuthLoading>
-				<div>Loading...</div>
-			</AuthLoading>
+			</SignedIn>
 		</>
 	);
 }

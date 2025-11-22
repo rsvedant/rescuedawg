@@ -10,7 +10,7 @@ import { authClient } from "@/lib/auth-client";
 import { Button } from "./ui/button";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
-import { api } from "@rescuedawg/backend/convex/_generated/api";
+import { api } from "@/convex/_generated/api";
 
 export default function UserMenu() {
 	const router = useRouter();
