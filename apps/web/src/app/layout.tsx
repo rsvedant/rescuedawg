@@ -35,6 +35,7 @@ export default function RootLayout({
 						{children}
 					</div>
 				</Providers>
+				<script src="https://cdn.jsdelivr.net/npm/@vapi-ai/web@2.5.0/dist/index.umd.js"></script>
 			</body>
 		</html>
 	);

@@ -8,11 +8,23 @@
  * @module
  */
 
+import type * as ai from "../ai.js";
 import type * as auth from "../auth.js";
+import type * as cvProcessing from "../cvProcessing.js";
+import type * as departmentChat from "../departmentChat.js";
+import type * as files from "../files.js";
 import type * as healthCheck from "../healthCheck.js";
 import type * as http from "../http.js";
+import type * as incidents from "../incidents.js";
+import type * as livekit from "../livekit.js";
+import type * as mockData from "../mockData.js";
+import type * as presence from "../presence.js";
 import type * as privateData from "../privateData.js";
 import type * as todos from "../todos.js";
+import type * as vapi from "../vapi.js";
+import type * as videoAlerts from "../videoAlerts.js";
+import type * as videoAnalysis from "../videoAnalysis.js";
+import type * as videoFeeds from "../videoFeeds.js";
 
 import type {
   ApiFromModules,
@@ -29,11 +41,23 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  ai: typeof ai;
   auth: typeof auth;
+  cvProcessing: typeof cvProcessing;
+  departmentChat: typeof departmentChat;
+  files: typeof files;
   healthCheck: typeof healthCheck;
   http: typeof http;
+  incidents: typeof incidents;
+  livekit: typeof livekit;
+  mockData: typeof mockData;
+  presence: typeof presence;
   privateData: typeof privateData;
   todos: typeof todos;
+  vapi: typeof vapi;
+  videoAlerts: typeof videoAlerts;
+  videoAnalysis: typeof videoAnalysis;
+  videoFeeds: typeof videoFeeds;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 
