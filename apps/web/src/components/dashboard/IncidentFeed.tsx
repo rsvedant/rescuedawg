@@ -65,7 +65,7 @@ export function IncidentFeed({ incidents }: IncidentFeedProps) {
 	}
 
 	return (
-		<div className="space-y-3">
+		<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 			{incidents.map((incident) => (
 				<IncidentCard key={incident._id} incident={incident} />
 			))}

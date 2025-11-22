@@ -5,7 +5,7 @@ import { useMutation, useAction } from "convex/react";
 import { api } from "@rescuedawg/backend/convex/_generated/api";
 import type { Id } from "@rescuedawg/backend/convex/_generated/dataModel";
 import type { AnalysisResponse, Emergency } from "@rescuedawg/backend/convex/videoAnalysis";
-import { Video, Square, Play, AlertCircle } from "lucide-react";
+import { Video, Square, Play, AlertCircle, Camera } from "lucide-react";
 import { Room, LocalVideoTrack } from "livekit-client";
 import Vapi from "@vapi-ai/web";
 
@@ -62,6 +62,10 @@ export default function StreamPage() {
 	const [vapiTranscript, setVapiTranscript] = useState<string>("");
 	const vapiCallStartTimeRef = useRef<number>(0);
 	const currentIncidentIdRef = useRef<string | null>(null);
+
+	// Camera selection state
+	const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
+	const [selectedCameraId, setSelectedCameraId] = useState<string | undefined>(undefined);
 
 	// Handle SAMPLE assessment submission
 	const handleSampleReport = async (parameters: any) => {
@@ -216,6 +220,36 @@ export default function StreamPage() {
 				}
 			}
 		};
+	}, []);
+
+	// Enumerate available cameras
+	useEffect(() => {
+		const enumerateCameras = async () => {
+			try {
+				// Request permission first
+				await navigator.mediaDevices.getUserMedia({ video: true });
+				
+				const devices = await navigator.mediaDevices.enumerateDevices();
+				const videoDevices = devices.filter(device => device.kind === 'videoinput');
+				setAvailableCameras(videoDevices);
+				
+				// Set default camera (prefer back camera if available)
+				if (videoDevices.length > 0 && !selectedCameraId) {
+					const backCamera = videoDevices.find(device => 
+						device.label.toLowerCase().includes('back') || 
+						device.label.toLowerCase().includes('environment')
+					);
+					setSelectedCameraId(backCamera?.deviceId || videoDevices[0].deviceId);
+				}
+				
+				console.log('[Camera] Found', videoDevices.length, 'cameras');
+			} catch (error: any) {
+				console.error('[Camera] Failed to enumerate cameras:', error);
+				addDebugLog(`❌ Camera enumeration failed: ${error.message}`);
+			}
+		};
+
+		enumerateCameras();
 	}, []);
 
 	// Setup Socket.IO connection for video stream
@@ -396,10 +430,21 @@ export default function StreamPage() {
 					};
 
 					try {
-						// Start call with transient configuration
-						vapiRef.current.start(config);
-						addDebugLog("📞 VAPI call initiated with transient config");
-						setStatus("Emergency call in progress");
+						// Add 10 second delay before starting call
+						addDebugLog("⏳ Waiting 10 seconds before initiating call...");
+						setStatus("Emergency detected - call starting in 10 seconds");
+						
+						setTimeout(() => {
+							if (!vapiRef.current) {
+								addDebugLog("❌ VAPI not available after delay");
+								detectionLockedRef.current = false;
+								return;
+							}
+							// Start call with transient configuration
+							vapiRef.current.start(config);
+							addDebugLog("📞 VAPI call initiated with transient config");
+							setStatus("Emergency call in progress");
+						}, 10000);
 					} catch (callError: any) {
 						console.error('[VAPI] Failed to start call:', callError);
 						addDebugLog(`❌ Call start failed: ${callError.message || 'Unknown error'}`);
@@ -501,11 +546,12 @@ export default function StreamPage() {
 			await room.connect(process.env.NEXT_PUBLIC_LIVEKIT_URL!, token);
 			console.log("[LiveKit] Dog cam connected to room");
 
-			// Enable webcam with back camera (environment)
-			// Use "environment" for back camera, "user" for front camera
-			await room.localParticipant.setCameraEnabled(true, {
-				facingMode: "environment", // Use back camera
-			});
+			// Enable webcam with selected camera
+			const cameraOptions: any = selectedCameraId 
+				? { deviceId: { exact: selectedCameraId } }
+				: { facingMode: "environment" }; // Fallback to back camera
+			
+			await room.localParticipant.setCameraEnabled(true, cameraOptions);
 			const videoTrack = room.localParticipant.videoTrackPublications.values().next().value?.track;
 			if (videoTrack && videoTrack instanceof LocalVideoTrack) {
 				setDogCamTrack(videoTrack);
@@ -843,9 +889,22 @@ export default function StreamPage() {
 							},
 						};
 
-						// Start call with SAMPLE configuration
-						vapiRef.current.start(config);
-						addDebugLog("✅ SAMPLE assessment call started");
+						// Add 10 second delay before starting call
+						addDebugLog("⏳ Waiting 10 seconds before initiating SAMPLE call...");
+						setStatus("Emergency detected - SAMPLE assessment starting in 10 seconds");
+						
+						setTimeout(() => {
+							if (!vapiRef.current) {
+								addDebugLog("❌ VAPI not available after delay");
+								detectionLockedRef.current = false;
+								currentIncidentIdRef.current = null;
+								return;
+							}
+							// Start call with SAMPLE configuration
+							vapiRef.current.start(config);
+							addDebugLog("✅ SAMPLE assessment call started");
+							setStatus("SAMPLE assessment - please speak");
+						}, 10000);
 					} catch (vapiError: any) {
 						console.error("[VAPI] Call preparation/start error:", vapiError);
 						addDebugLog(`❌ VAPI error: ${vapiError.message || 'Unknown error'}`);
@@ -963,6 +1022,34 @@ export default function StreamPage() {
 								</div>
 							)}
 						</div>
+						
+						{/* Camera Selection */}
+						{availableCameras.length > 0 && (
+							<div className="mt-3">
+								<label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
+									<Camera className="w-4 h-4" />
+									Select Camera
+								</label>
+								<select
+									value={selectedCameraId || ''}
+									onChange={(e) => setSelectedCameraId(e.target.value)}
+									disabled={isStreaming}
+									className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+								>
+									{availableCameras.map((camera) => (
+										<option key={camera.deviceId} value={camera.deviceId}>
+											{camera.label || `Camera ${camera.deviceId.substring(0, 8)}...`}
+										</option>
+									))}
+								</select>
+								{isStreaming && (
+									<p className="mt-1 text-xs text-gray-500">
+										Stop streaming to change camera
+									</p>
+								)}
+							</div>
+						)}
+						
 						<p className="mt-2 text-xs text-gray-400">Webcam feed recorded to incident report</p>
 					</div>
 				</div>

@@ -7,6 +7,7 @@ import { useState, useEffect, useRef } from "react";
 import { LiveKitRoom, VideoTrack, useParticipants } from "@livekit/components-react";
 import { Track, Participant } from "livekit-client";
 import "@livekit/components-styles";
+import { ModelViewerCard } from "./ModelViewerCard";
 
 export function VideoFeedSidebar() {
 	const [currentTime, setCurrentTime] = useState(new Date());
@@ -93,16 +94,8 @@ export function VideoFeedSidebar() {
 
 	if (!token) {
 		return (
-			<div className="w-80 bg-gray-900 border-r border-gray-800 flex flex-col">
-				<div className="px-4 py-3 border-b border-gray-800">
-					<h2 className="text-lg font-semibold text-white flex items-center gap-2">
-						<Video className="w-5 h-5" />
-						Live Feeds
-					</h2>
-				</div>
-				<div className="flex-1 flex items-center justify-center">
-					<p className="text-gray-400 text-sm">Connecting...</p>
-				</div>
+			<div className="flex items-center justify-center py-8">
+				<p className="text-muted-foreground text-sm">Connecting to live feeds...</p>
 			</div>
 		);
 	}
@@ -110,8 +103,8 @@ export function VideoFeedSidebar() {
 	const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
 	if (!livekitUrl) {
 		return (
-			<div className="w-80 bg-gray-900 border-r border-gray-800 flex flex-col p-4">
-				<p className="text-red-400 text-sm">
+			<div className="p-4 border border-destructive/50 rounded-lg bg-destructive/10">
+				<p className="text-destructive text-sm">
 					LiveKit URL not configured. Set NEXT_PUBLIC_LIVEKIT_URL in .env
 				</p>
 			</div>
@@ -119,38 +112,51 @@ export function VideoFeedSidebar() {
 	}
 
 	return (
-		<div className="w-80 bg-gray-900 border-r border-gray-800 flex flex-col">
-			<div className="px-4 py-3 border-b border-gray-800">
-				<h2 className="text-lg font-semibold text-white flex items-center gap-2">
+		<div>
+			<div className="flex items-center justify-between mb-4">
+				<h2 className="text-lg font-semibold flex items-center gap-2">
 					<Video className="w-5 h-5" />
-					Live Feeds
+					Live Video Feeds
 				</h2>
-				<p className="text-xs text-gray-400 mt-1">
+				<p className="text-xs text-muted-foreground">
 					{currentTime.toLocaleTimeString()}
 				</p>
 			</div>
 
-			<div className="flex-1 overflow-y-auto p-4 space-y-4">
-				{/* CCTV Feed (Socket.IO) */}
-				<CCTVFeedCard frame={cctvFrame} isConnected={cctvConnected} />
+			<LiveKitRoom
+				serverUrl={livekitUrl}
+				token={token}
+				connect={true}
+				options={{ adaptiveStream: true, dynacast: true }}
+			>
+				<div className="flex gap-4 overflow-x-auto pb-4 -mx-6 px-6 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+					{/* CCTV Feed (Socket.IO) */}
+					<div className="shrink-0 w-[650px]">
+						<CCTVFeedCard frame={cctvFrame} isConnected={cctvConnected} />
+					</div>
 
-				{/* LiveKit Feeds (Dog View) */}
-				<LiveKitRoom
-					serverUrl={livekitUrl}
-					token={token}
-					connect={true}
-					options={{ adaptiveStream: true, dynacast: true }}
-				>
+					{/* 3D Model Viewer */}
+					<div className="shrink-0 w-[650px]">
+						<ModelViewerCard />
+					</div>
+
+					{/* LiveKit Feeds (Dog View) */}
 					{feeds && feeds.length > 0 ? (
-						feeds.map((feed) => <FeedCard key={feed.feedId} feed={feed} />)
+						feeds.map((feed) => (
+							<div key={feed.feedId} className="shrink-0 w-[650px]">
+								<FeedCard feed={feed} />
+							</div>
+						))
 					) : (
-						<div className="text-center py-8">
-							<Video className="w-12 h-12 text-gray-600 mx-auto mb-2" />
-							<p className="text-gray-400 text-sm">No active feeds</p>
+						<div className="shrink-0 w-[650px] flex items-center justify-center">
+							<div className="text-center py-12">
+								<Video className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
+								<p className="text-muted-foreground text-sm">No active feeds</p>
+							</div>
 						</div>
 					)}
-				</LiveKitRoom>
-			</div>
+				</div>
+			</LiveKitRoom>
 		</div>
 	);
 }
@@ -164,20 +170,20 @@ function FeedCard({ feed }: { feed: any }) {
 	);
 
 	// Get video track
-	const videoTrackPublication = participant
-		? Array.from(participant.videoTrackPublications.values())[0]
+	const videoTrackPublication = participant?.videoTrackPublications.size
+		? [...participant.videoTrackPublications.values()][0]
 		: null;
 
 	return (
 		<div
-			className={`rounded-lg overflow-hidden border-2 transition-colors ${
+			className={`rounded-lg overflow-hidden border transition-colors ${
 				feed.status === "alert"
 					? "border-red-500 shadow-lg shadow-red-500/50"
-					: "border-gray-700"
+					: "border-border"
 			}`}
 		>
 			{/* Video Feed */}
-			<div className="relative aspect-video bg-gray-800">
+			<div className="relative aspect-video bg-muted">
 				{videoTrackPublication && videoTrackPublication.isSubscribed ? (
 					<VideoTrack
 						trackRef={{
@@ -188,10 +194,10 @@ function FeedCard({ feed }: { feed: any }) {
 						className="w-full h-full object-cover"
 					/>
 				) : (
-					<div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
+					<div className="absolute inset-0 bg-linear-to-br from-muted to-muted/50 flex items-center justify-center">
 						<div className="text-center">
-							<Video className="w-12 h-12 text-gray-600 mx-auto mb-2" />
-							<p className="text-xs text-gray-500">Waiting for stream...</p>
+							<Video className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
+							<p className="text-xs text-muted-foreground">Waiting for stream...</p>
 						</div>
 					</div>
 				)}
@@ -230,11 +236,11 @@ function FeedCard({ feed }: { feed: any }) {
 			</div>
 
 			{/* Feed Info */}
-			<div className="bg-gray-800 p-3 space-y-2">
+			<div className="bg-card p-3 space-y-2">
 				<div className="flex items-start justify-between">
 					<div className="flex-1">
-						<p className="text-sm font-semibold text-white">{feed.feedId}</p>
-						<p className="text-xs text-gray-400">{feed.name}</p>
+						<p className="text-sm font-semibold">{feed.feedId}</p>
+						<p className="text-xs text-muted-foreground">{feed.name}</p>
 					</div>
 					{feed.status === "alert" && (
 						<span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs font-semibold rounded">
@@ -243,12 +249,12 @@ function FeedCard({ feed }: { feed: any }) {
 					)}
 				</div>
 
-				<div className="flex items-center gap-1 text-xs text-gray-400">
+				<div className="flex items-center gap-1 text-xs text-muted-foreground">
 					<MapPin className="w-3 h-3" />
 					<span>{feed.location.address}</span>
 				</div>
 
-				<div className="flex items-center gap-1 text-xs text-gray-500">
+				<div className="flex items-center gap-1 text-xs text-muted-foreground">
 					<Clock className="w-3 h-3" />
 					<span>
 						{feed.lastFrameAnalyzedAt
@@ -263,9 +269,9 @@ function FeedCard({ feed }: { feed: any }) {
 
 function CCTVFeedCard({ frame, isConnected }: { frame: string | null; isConnected: boolean }) {
 	return (
-		<div className="rounded-lg overflow-hidden border-2 border-gray-700">
+		<div className="rounded-lg overflow-hidden border border-border">
 			{/* Video Feed */}
-			<div className="relative aspect-video bg-gray-800">
+			<div className="relative aspect-video bg-muted">
 				{frame ? (
 					<img 
 						src={frame} 
@@ -273,10 +279,10 @@ function CCTVFeedCard({ frame, isConnected }: { frame: string | null; isConnecte
 						className="w-full h-full object-cover"
 					/>
 				) : (
-					<div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
+					<div className="absolute inset-0 bg-linear-to-br from-muted to-muted/50 flex items-center justify-center">
 						<div className="text-center">
-							<Video className="w-12 h-12 text-gray-600 mx-auto mb-2" />
-							<p className="text-xs text-gray-500">
+							<Video className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
+							<p className="text-xs text-muted-foreground">
 								{isConnected ? 'Waiting for stream...' : 'Connecting...'}
 							</p>
 						</div>
@@ -313,20 +319,20 @@ function CCTVFeedCard({ frame, isConnected }: { frame: string | null; isConnecte
 			</div>
 
 			{/* Feed Info */}
-			<div className="bg-gray-800 p-3 space-y-2">
+			<div className="bg-card p-3 space-y-2">
 				<div className="flex items-start justify-between">
 					<div className="flex-1">
-						<p className="text-sm font-semibold text-white">📹 CCTV Feed</p>
-						<p className="text-xs text-gray-400">External Camera</p>
+						<p className="text-sm font-semibold">📹 CCTV Feed</p>
+						<p className="text-xs text-muted-foreground">External Camera</p>
 					</div>
 				</div>
 
-				<div className="flex items-center gap-1 text-xs text-gray-400">
+				<div className="flex items-center gap-1 text-xs text-muted-foreground">
 					<MapPin className="w-3 h-3" />
 					<span>Y Combinator, 335 Pioneer Way, Mountain View, CA 94041</span>
 				</div>
 
-				<div className="flex items-center gap-1 text-xs text-gray-500">
+				<div className="flex items-center gap-1 text-xs text-muted-foreground">
 					<Clock className="w-3 h-3" />
 					<span>
 						{isConnected ? 'Analysis active' : 'Offline'}

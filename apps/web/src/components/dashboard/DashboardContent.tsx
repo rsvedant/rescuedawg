@@ -68,125 +68,90 @@ export function DashboardContent() {
 	}
 
 	return (
-		<div className="flex h-screen bg-background">
-			{/* Left Sidebar - Video Feeds */}
-			<VideoFeedSidebar />
+		<div className="flex flex-col h-screen bg-background overflow-hidden">
+			{/* Compact Header with Stats */}
+			<header className="border-b bg-card/50 backdrop-blur shrink-0">
+				<div className="px-6 py-3">
+					<div className="flex items-center justify-between gap-4">
+						<div className="flex items-center gap-2">
+							<Activity className="w-5 h-5 text-primary" />
+							<h1 className="text-xl font-semibold">Emergency Response</h1>
+						</div>
 
-			{/* Main Content */}
-			<div className="flex-1 flex flex-col overflow-hidden">
-				{/* Header */}
-				<header className="border-b bg-card/50 backdrop-blur supports-backdrop-filter:bg-card/50">
-					<div className="px-6 py-5">
-						<div className="flex items-center justify-between">
-							<div className="space-y-1">
-								<h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-									<Activity className="w-5 h-5 text-primary" />
-									Emergency Response
-								</h1>
-								<p className="text-sm text-muted-foreground">
-									Real-time incident monitoring and coordination
-								</p>
+						{/* Compact Stats */}
+						<div className="flex items-center gap-3">
+							<div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-card border">
+								<Activity className="h-3.5 w-3.5 text-muted-foreground" />
+								<span className="text-sm font-semibold">{stats.total}</span>
+								<span className="text-xs text-muted-foreground">Total</span>
+							</div>
+							<div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-destructive/10 border border-destructive/20">
+								<AlertCircle className="h-3.5 w-3.5 text-destructive" />
+								<span className="text-sm font-semibold text-destructive">{stats.active}</span>
+								<span className="text-xs text-muted-foreground">Active</span>
+							</div>
+							<div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-yellow-500/10 border border-yellow-500/20">
+								<Clock className="h-3.5 w-3.5 text-yellow-600" />
+								<span className="text-sm font-semibold text-yellow-600">{stats.ongoing}</span>
+								<span className="text-xs text-muted-foreground">Ongoing</span>
+							</div>
+							<div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-orange-500/10 border border-orange-500/20">
+								<Flame className="h-3.5 w-3.5 text-orange-600" />
+								<span className="text-sm font-semibold text-orange-600">{stats.critical}</span>
+								<span className="text-xs text-muted-foreground">Critical</span>
 							</div>
 						</div>
 					</div>
-				</header>
+				</div>
+			</header>
 
-				{/* Stats Grid */}
-				<div className="px-6 py-6 space-y-6">
-					<div className="grid gap-4 md:grid-cols-4">
-						<Card className="transition-all hover:shadow-md">
-							<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-								<CardTitle className="text-sm font-medium">
-									Total Incidents
-								</CardTitle>
-								<Activity className="h-4 w-4 text-muted-foreground" />
-							</CardHeader>
-							<CardContent>
-								<div className="text-2xl font-bold">{stats.total}</div>
-								<p className="text-xs text-muted-foreground mt-1">
-									All time incidents
-								</p>
-							</CardContent>
-						</Card>
-
-						<Card className="transition-all hover:shadow-md border-destructive/20">
-							<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-								<CardTitle className="text-sm font-medium">
-									Active
-								</CardTitle>
-								<AlertCircle className="h-4 w-4 text-destructive" />
-							</CardHeader>
-							<CardContent>
-								<div className="text-2xl font-bold text-destructive">{stats.active}</div>
-								<p className="text-xs text-muted-foreground mt-1">
-									Requires immediate attention
-								</p>
-							</CardContent>
-						</Card>
-
-						<Card className="transition-all hover:shadow-md border-yellow-500/20">
-							<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-								<CardTitle className="text-sm font-medium">
-									In Progress
-								</CardTitle>
-								<Clock className="h-4 w-4 text-yellow-600" />
-							</CardHeader>
-							<CardContent>
-								<div className="text-2xl font-bold text-yellow-600">{stats.ongoing}</div>
-								<p className="text-xs text-muted-foreground mt-1">
-									Being handled
-								</p>
-							</CardContent>
-						</Card>
-
-						<Card className="transition-all hover:shadow-md border-orange-500/20">
-							<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-								<CardTitle className="text-sm font-medium">
-									Critical
-								</CardTitle>
-								<Flame className="h-4 w-4 text-orange-600" />
-							</CardHeader>
-							<CardContent>
-								<div className="text-2xl font-bold text-orange-600">{stats.critical}</div>
-								<p className="text-xs text-muted-foreground mt-1">
-									High priority cases
-								</p>
-							</CardContent>
-						</Card>
+			{/* Main Content Area */}
+			<div className="flex-1 overflow-y-auto">
+				<div className="p-6">
+					{/* Video Feed Grid - Center Focus */}
+					<div className="mb-6">
+						<VideoFeedSidebar />
 					</div>
 
-					{/* Tabs */}
-					<Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)} className="w-full">
-						<TabsList className="grid w-full max-w-md grid-cols-3">
-							<TabsTrigger value="active" className="gap-2">
-								<AlertCircle className="h-4 w-4" />
-								Active
-								{stats.active > 0 && (
-									<Badge variant="destructive" className="ml-1 h-5 px-1.5">
-										{stats.active}
-									</Badge>
-								)}
-							</TabsTrigger>
-							<TabsTrigger value="ongoing" className="gap-2">
-								<Clock className="h-4 w-4" />
-								Ongoing
-								{stats.ongoing > 0 && (
-									<Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-										{stats.ongoing}
-									</Badge>
-								)}
-							</TabsTrigger>
-							<TabsTrigger value="closed" className="gap-2">
-								<CheckCircle2 className="h-4 w-4" />
-								Closed
-							</TabsTrigger>
-						</TabsList>
-					</Tabs>
-				</div>
+					{/* Reports Section - Below Videos */}
+					<div className="border-t pt-6">
+						<div className="mb-4">
+							<h2 className="text-lg font-semibold flex items-center gap-2">
+								<TrendingUp className="w-5 h-5" />
+								Incident Reports
+							</h2>
 
-				{/* Incident Feed - Scrollable */}
-				<div className="flex-1 overflow-y-auto px-6 pb-6">
-					<IncidentFeed incidents={filteredIncidents} />
+							{/* Tabs */}
+							<Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)} className="mt-3">
+								<TabsList className="grid w-full grid-cols-3 max-w-md">
+									<TabsTrigger value="active" className="text-xs">
+										Active
+										{stats.active > 0 && (
+											<Badge variant="destructive" className="ml-1 h-4 px-1 text-[10px]">
+												{stats.active}
+											</Badge>
+										)}
+									</TabsTrigger>
+									<TabsTrigger value="ongoing" className="text-xs">
+										Ongoing
+										{stats.ongoing > 0 && (
+											<Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px] bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+												{stats.ongoing}
+											</Badge>
+										)}
+									</TabsTrigger>
+									<TabsTrigger value="closed" className="text-xs">
+										Closed
+									</TabsTrigger>
+								</TabsList>
+							</Tabs>
+						</div>
+
+						{/* Incident Feed - Limited Height to Show a Few */}
+						<div className="max-h-[400px] overflow-y-auto">
+							<IncidentFeed incidents={filteredIncidents} />
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>
