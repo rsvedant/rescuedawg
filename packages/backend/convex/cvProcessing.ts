@@ -126,11 +126,6 @@ export const triggerCVAnalysis = mutation({
 		videoUrl: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (identity === null) {
-			throw new Error("Not authenticated");
-		}
-
 		// In production, this would call your CV pipeline API
 		// For now, return a mock job ID
 		const jobId = `cv-${Date.now()}`;
@@ -163,11 +158,6 @@ export const triggerCVAnalysis = mutation({
 export const getCVResults = query({
 	args: { incidentId: v.id("incidents") },
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (identity === null) {
-			throw new Error("Not authenticated");
-		}
-
 		return await ctx.db
 			.query("cvAnalysis")
 			.withIndex("by_incident", (q) => q.eq("incidentId", args.incidentId))

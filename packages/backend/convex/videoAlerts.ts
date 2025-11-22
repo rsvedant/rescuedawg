@@ -83,11 +83,6 @@ export const getByFeed = query({
 		limit: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (!identity) {
-			throw new Error("Not authenticated");
-		}
-
 		return await ctx.db
 			.query("videoAlerts")
 			.withIndex("by_feed", (q) => q.eq("feedId", args.feedId))
@@ -101,11 +96,6 @@ export const getRecent = query({
 		limit: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (!identity) {
-			throw new Error("Not authenticated");
-		}
-
 		return await ctx.db
 			.query("videoAlerts")
 			.order("desc")
@@ -118,11 +108,6 @@ export const resolve = mutation({
 		alertId: v.id("videoAlerts"),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (!identity) {
-			throw new Error("Not authenticated");
-		}
-
 		await ctx.db.patch(args.alertId, {
 			resolved: true,
 		});

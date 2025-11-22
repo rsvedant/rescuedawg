@@ -1,11 +1,8 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { authComponent, createAuth } from "./auth";
 import { api, internal } from "./_generated/api";
 
 const http = httpRouter();
-
-authComponent.registerRoutes(http, createAuth);
 
 // Webhook endpoint for CV analysis results
 http.route({

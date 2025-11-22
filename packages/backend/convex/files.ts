@@ -4,11 +4,6 @@ import { v } from "convex/values";
 // Generate an upload URL for file uploads
 export const generateUploadUrl = mutation({
 	handler: async (ctx) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (identity === null) {
-			throw new Error("Not authenticated");
-		}
-
 		return await ctx.storage.generateUploadUrl();
 	},
 });
@@ -23,18 +18,13 @@ export const saveFileMetadata = mutation({
 		fileSize: v.number(),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (identity === null) {
-			throw new Error("Not authenticated");
-		}
-
 		await ctx.db.insert("incidentFiles", {
 			storageId: args.storageId,
 			incidentId: args.incidentId,
 			fileName: args.fileName,
 			fileType: args.fileType,
 			fileSize: args.fileSize,
-			uploadedBy: identity.email || identity.subject,
+			uploadedBy: "system",
 			uploadedAt: Date.now(),
 		});
 
@@ -54,11 +44,6 @@ export const getFileUrl = query({
 export const getIncidentFiles = query({
 	args: { incidentId: v.id("incidents") },
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (identity === null) {
-			throw new Error("Not authenticated");
-		}
-
 		const files = await ctx.db
 			.query("incidentFiles")
 			.withIndex("by_incident", (q) => q.eq("incidentId", args.incidentId))
@@ -85,11 +70,6 @@ export const deleteFile = mutation({
 		fileId: v.id("incidentFiles"),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (identity === null) {
-			throw new Error("Not authenticated");
-		}
-
 		const file = await ctx.db.get(args.fileId);
 		if (!file) {
 			throw new Error("File not found");

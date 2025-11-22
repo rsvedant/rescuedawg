@@ -5,11 +5,6 @@ import { v } from "convex/values";
 export const listMessages = query({
 	args: { incidentId: v.id("incidents") },
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (identity === null) {
-			throw new Error("Not authenticated");
-		}
-
 		return await ctx.db
 			.query("departmentMessages")
 			.withIndex("by_incident", (q) => q.eq("incidentId", args.incidentId))
@@ -26,17 +21,12 @@ export const sendMessage = mutation({
 		department: v.string(),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (identity === null) {
-			throw new Error("Not authenticated");
-		}
-
 		await ctx.db.insert("departmentMessages", {
 			incidentId: args.incidentId,
 			message: args.message,
 			department: args.department,
-			sender: identity.email || identity.subject,
-			senderName: identity.name || "Unknown",
+			sender: "system",
+			senderName: "System",
 			timestamp: Date.now(),
 		});
 

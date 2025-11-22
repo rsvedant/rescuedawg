@@ -8,8 +8,6 @@
     "start": "next start"
   },
   "dependencies": {
-    "@convex-dev/better-auth": "catalog:",
-    "@daveyplate/better-auth-ui": "^3.2.8",
     "@livekit/components-react": "^2.9.15",
     "@livekit/components-styles": "^1.1.6",
     "@mediapipe/camera_utils": "^0.3.1675466862",
@@ -21,7 +19,6 @@
     "@vapi-ai/web": "^2.5.0",
     "ai": "^5.0.89",
     "babel-plugin-react-compiler": "^1.0.0",
-    "better-auth": "catalog:",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -38,7 +35,6 @@
     "react-day-picker": "^9.11.1",
     "react-dom": "19.2.0",
     "recharts": "^3.3.0",
-    "resend": "^6.4.2",
     "sonner": "^2.0.5",
     "tailwind-merge": "^3.3.1",
     "three": "^0.181.0",

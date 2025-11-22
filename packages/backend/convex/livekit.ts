@@ -8,12 +8,6 @@ export const generateToken = action({
 		roomName: v.string(),
 	},
 	handler: async (ctx, args) => {
-		// Verify authentication
-		const userIdentity = await ctx.auth.getUserIdentity();
-		if (!userIdentity) {
-			throw new Error("Not authenticated");
-		}
-
 		const apiKey = process.env.LIVEKIT_API_KEY;
 		const apiSecret = process.env.LIVEKIT_API_SECRET;
 

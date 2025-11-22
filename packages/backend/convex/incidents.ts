@@ -9,12 +9,6 @@ export const getAll = query({
 		limit: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
-		// Authentication check
-		const identity = await ctx.auth.getUserIdentity();
-		if (identity === null) {
-			throw new Error("Not authenticated");
-		}
-
 		let incidents;
 
 		// Apply filters
@@ -46,11 +40,6 @@ export const getAll = query({
 export const getById = query({
 	args: { id: v.id("incidents") },
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (identity === null) {
-			throw new Error("Not authenticated");
-		}
-
 		return await ctx.db.get(args.id);
 	},
 });
@@ -140,11 +129,6 @@ export const updateStatus = mutation({
 		notes: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (identity === null) {
-			throw new Error("Not authenticated");
-		}
-
 		const incident = await ctx.db.get(args.incidentId);
 		if (!incident) {
 			throw new Error("Incident not found");
@@ -152,7 +136,7 @@ export const updateStatus = mutation({
 
 		await ctx.db.patch(args.incidentId, {
 			status: args.status,
-			lastUpdatedBy: identity.email || identity.subject,
+			lastUpdatedBy: "system",
 			lastUpdatedAt: Date.now(),
 			version: incident.version + 1,
 		});
@@ -161,7 +145,7 @@ export const updateStatus = mutation({
 		await ctx.db.insert("incidentHistory", {
 			incidentId: args.incidentId,
 			changes: { status: args.status, notes: args.notes },
-			updatedBy: identity.email || identity.subject,
+			updatedBy: "system",
 			timestamp: Date.now(),
 		});
 
@@ -176,15 +160,10 @@ export const addNote = mutation({
 		note: v.string(),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (identity === null) {
-			throw new Error("Not authenticated");
-		}
-
 		await ctx.db.insert("incidentHistory", {
 			incidentId: args.incidentId,
 			changes: { note: args.note },
-			updatedBy: identity.email || identity.subject,
+			updatedBy: "system",
 			timestamp: Date.now(),
 		});
 
@@ -207,11 +186,6 @@ export const assignUnits = mutation({
 		),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (identity === null) {
-			throw new Error("Not authenticated");
-		}
-
 		const incident = await ctx.db.get(args.incidentId);
 		if (!incident) {
 			throw new Error("Incident not found");
@@ -219,7 +193,7 @@ export const assignUnits = mutation({
 
 		await ctx.db.patch(args.incidentId, {
 			assignedUnits: args.units,
-			lastUpdatedBy: identity.email || identity.subject,
+			lastUpdatedBy: "system",
 			lastUpdatedAt: Date.now(),
 			version: incident.version + 1,
 		});
@@ -228,7 +202,7 @@ export const assignUnits = mutation({
 		await ctx.db.insert("incidentHistory", {
 			incidentId: args.incidentId,
 			changes: { assignedUnits: args.units },
-			updatedBy: identity.email || identity.subject,
+			updatedBy: "system",
 			timestamp: Date.now(),
 		});
 
@@ -246,11 +220,6 @@ export const updateAIAnalysis = mutation({
 		priority: v.string(),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (identity === null) {
-			throw new Error("Not authenticated");
-		}
-
 		const incident = await ctx.db.get(args.incidentId);
 		if (!incident) {
 			throw new Error("Incident not found");
@@ -261,7 +230,7 @@ export const updateAIAnalysis = mutation({
 			incidentType: args.incidentType,
 			severity: args.severity,
 			priority: args.priority,
-			lastUpdatedBy: identity.email || identity.subject,
+			lastUpdatedBy: "system",
 			lastUpdatedAt: Date.now(),
 			version: incident.version + 1,
 		});

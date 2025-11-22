@@ -14,8 +14,6 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.29",
-    "@convex-dev/better-auth": "catalog:",
-    "better-auth": "catalog:",
     "convex": "catalog:",
     "jose": "^6.1.0",
     "zod": "^4.1.12"

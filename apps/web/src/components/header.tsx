@@ -1,7 +1,6 @@
 "use client";
 import Link from "next/link";
 import { ModeToggle } from "./mode-toggle";
-import { UserButton, SignedIn, SignedOut } from "@daveyplate/better-auth-ui";
 
 export default function Header() {
 	const links = [
@@ -15,8 +14,8 @@ export default function Header() {
 				<nav className="flex gap-6 text-sm font-medium">
 					{links.map(({ to, label }) => {
 						return (
-							<Link 
-								key={to} 
+							<Link
+								key={to}
 								href={to}
 								className="transition-colors hover:text-foreground/80 text-foreground/60"
 							>
@@ -26,17 +25,6 @@ export default function Header() {
 					})}
 				</nav>
 				<div className="flex items-center gap-3">
-					<SignedIn>
-						<UserButton />
-					</SignedIn>
-					<SignedOut>
-						<Link 
-							href="/auth/sign-in"
-							className="text-sm font-medium transition-colors hover:text-foreground/80 text-foreground/60"
-						>
-							Sign In
-						</Link>
-					</SignedOut>
 					<ModeToggle />
 				</div>
 			</div>

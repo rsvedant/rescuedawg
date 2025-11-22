@@ -3,11 +3,6 @@ import { v } from "convex/values";
 
 export const getActive = query({
 	handler: async (ctx) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (!identity) {
-			throw new Error("Not authenticated");
-		}
-
 		return await ctx.db
 			.query("videoFeeds")
 			.filter((q) =>
@@ -23,11 +18,6 @@ export const getActive = query({
 
 export const getAll = query({
 	handler: async (ctx) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (!identity) {
-			throw new Error("Not authenticated");
-		}
-
 		return await ctx.db.query("videoFeeds").order("desc").collect();
 	},
 });
@@ -35,11 +25,6 @@ export const getAll = query({
 export const getByFeedId = query({
 	args: { feedId: v.string() },
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (!identity) {
-			throw new Error("Not authenticated");
-		}
-
 		return await ctx.db
 			.query("videoFeeds")
 			.withIndex("by_feedId", (q) => q.eq("feedId", args.feedId))
@@ -61,11 +46,6 @@ export const register = mutation({
 		}),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (!identity) {
-			throw new Error("Not authenticated");
-		}
-
 		// Check if feed already exists
 		const existing = await ctx.db
 			.query("videoFeeds")
@@ -143,11 +123,6 @@ export const deregister = mutation({
 		feedId: v.string(),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (!identity) {
-			throw new Error("Not authenticated");
-		}
-
 		const feed = await ctx.db
 			.query("videoFeeds")
 			.withIndex("by_feedId", (q) => q.eq("feedId", args.feedId))

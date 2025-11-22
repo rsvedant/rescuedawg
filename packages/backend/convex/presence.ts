@@ -8,15 +8,10 @@ export const updatePresence = mutation({
 		status: v.union(v.literal("viewing"), v.literal("away")),
 	},
 	handler: async (ctx, args) => {
-		const identity = await ctx.auth.getUserIdentity();
-		if (identity === null) {
-			throw new Error("Not authenticated");
-		}
-
 		const existing = await ctx.db
 			.query("presence")
 			.withIndex("by_user_incident", (q) =>
-				q.eq("userId", identity.subject).eq("incidentId", args.incidentId),
+				q.eq("userId", "system").eq("incidentId", args.incidentId),
 			)
 			.first();
 
@@ -28,8 +23,8 @@ export const updatePresence = mutation({
 		} else {
 			await ctx.db.insert("presence", {
 				incidentId: args.incidentId,
-				userId: identity.subject,
-				userName: identity.name || "Unknown",
+				userId: "system",
+				userName: "System",
 				status: args.status,
 				lastSeen: Date.now(),
 			});
