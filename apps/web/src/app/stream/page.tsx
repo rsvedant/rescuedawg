@@ -5,7 +5,7 @@ import { useMutation, useAction } from "convex/react";
 import { api } from "@rescuedawg/backend/convex/_generated/api";
 import type { Id } from "@rescuedawg/backend/convex/_generated/dataModel";
 import type { AnalysisResponse, Emergency } from "@rescuedawg/backend/convex/videoAnalysis";
-import { Video, Square, Play, AlertCircle, Camera } from "lucide-react";
+import { Video, Square, Play, AlertCircle, Camera, Volume2 } from "lucide-react";
 import { Room, LocalVideoTrack } from "livekit-client";
 import Vapi from "@vapi-ai/web";
 
@@ -67,6 +67,10 @@ export default function StreamPage() {
 	const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
 	const [selectedCameraId, setSelectedCameraId] = useState<string | undefined>(undefined);
 
+	// Audio output selection state
+	const [availableAudioOutputs, setAvailableAudioOutputs] = useState<MediaDeviceInfo[]>([]);
+	const [selectedAudioOutputId, setSelectedAudioOutputId] = useState<string | undefined>(undefined);
+
 	// Handle SAMPLE assessment submission
 	const handleSampleReport = async (parameters: any) => {
 		if (!currentIncidentIdRef.current) {
@@ -120,6 +124,35 @@ export default function StreamPage() {
 				addDebugLog("✅ VAPI call connected - SAMPLE assessment beginning");
 				vapiCallStartTimeRef.current = Date.now();
 				setVapiTranscript("");
+				
+				// Set audio output to selected device (speaker)
+				setTimeout(async () => {
+					try {
+						// Find all audio elements created by VAPI
+						const audioElements = document.querySelectorAll('audio');
+						console.log(`[VAPI] Found ${audioElements.length} audio elements`);
+						
+						for (const audio of audioElements) {
+							if (selectedAudioOutputId && typeof (audio as any).setSinkId === 'function') {
+								try {
+									await (audio as any).setSinkId(selectedAudioOutputId);
+									console.log('[VAPI] Audio routed to:', selectedAudioOutputId);
+									addDebugLog("🔊 Audio routed to speaker");
+								} catch (err: any) {
+									console.error('[VAPI] setSinkId failed:', err);
+									addDebugLog(`⚠️ Could not set audio output: ${err.message}`);
+								}
+							} else {
+								// Fallback for browsers that don't support setSinkId
+								audio.volume = 1.0;
+								console.log('[VAPI] Audio volume set to max (fallback)');
+							}
+						}
+					} catch (error: any) {
+						console.error('[VAPI] Failed to configure audio output:', error);
+						addDebugLog(`⚠️ Audio configuration error: ${error.message}`);
+					}
+				}, 500);
 			});
 
 			vapiRef.current.on('call-end', async () => {
@@ -222,16 +255,19 @@ export default function StreamPage() {
 		};
 	}, []);
 
-	// Enumerate available cameras
+	// Enumerate available cameras and audio outputs
 	useEffect(() => {
-		const enumerateCameras = async () => {
+		const enumerateDevices = async () => {
 			try {
 				// Request permission first
-				await navigator.mediaDevices.getUserMedia({ video: true });
+				await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 				
 				const devices = await navigator.mediaDevices.enumerateDevices();
 				const videoDevices = devices.filter(device => device.kind === 'videoinput');
+				const audioOutputDevices = devices.filter(device => device.kind === 'audiooutput');
+				
 				setAvailableCameras(videoDevices);
+				setAvailableAudioOutputs(audioOutputDevices);
 				
 				// Set default camera (prefer back camera if available)
 				if (videoDevices.length > 0 && !selectedCameraId) {
@@ -242,14 +278,23 @@ export default function StreamPage() {
 					setSelectedCameraId(backCamera?.deviceId || videoDevices[0].deviceId);
 				}
 				
-				console.log('[Camera] Found', videoDevices.length, 'cameras');
+				// Set default audio output (prefer speaker if available)
+				if (audioOutputDevices.length > 0 && !selectedAudioOutputId) {
+					const speaker = audioOutputDevices.find(device => 
+						device.label.toLowerCase().includes('speaker') ||
+						device.label.toLowerCase().includes('speakerphone')
+					);
+					setSelectedAudioOutputId(speaker?.deviceId || audioOutputDevices[0].deviceId);
+				}
+				
+				console.log('[Devices] Found', videoDevices.length, 'cameras and', audioOutputDevices.length, 'audio outputs');
 			} catch (error: any) {
-				console.error('[Camera] Failed to enumerate cameras:', error);
-				addDebugLog(`❌ Camera enumeration failed: ${error.message}`);
+				console.error('[Devices] Failed to enumerate devices:', error);
+				addDebugLog(`❌ Device enumeration failed: ${error.message}`);
 			}
 		};
 
-		enumerateCameras();
+		enumerateDevices();
 	}, []);
 
 	// Setup Socket.IO connection for video stream
@@ -347,7 +392,7 @@ export default function StreamPage() {
 				if (incidentData.incidentId) {
 					addDebugLog(`✅ Incident ${incidentData.incidentId} created, starting VAPI call...`);
 
-					// Get emergency context with system prompt from backend
+					// Get emergency context from backend (for incident tracking)
 					addDebugLog("📝 Preparing emergency context...");
 					const emergencyContext = await prepareCall({
 						incidentId: incidentData.incidentId,
@@ -361,90 +406,40 @@ export default function StreamPage() {
 						return;
 					}
 
-					// Use transient assistant configuration with emergency-specific context
-					const config: any = {
-						name: `Fall-${Date.now()}`,
-						transcriber: {
-							provider: "deepgram",
-							model: "nova-2",
-							language: "en",
-						},
-						model: {
-							provider: "openai",
-							model: "gpt-4",
-							messages: [
-								{
-									role: "system",
-									content: emergencyContext.systemPrompt,
-								},
-							],
-							tools: [
-								{
-									type: "function",
-									function: {
-										name: "submitReport",
-										description: "Submit collected emergency information to dispatch",
-										parameters: {
-											type: "object",
-											properties: {
-												locationConfirmed: {
-													type: "string",
-													description: "Exact address confirmed by caller",
-												},
-												peopleAffected: {
-													type: "number",
-													description: "Number of people affected or injured",
-												},
-												currentStatus: {
-													type: "string",
-													description: "Current status: worsening, stable, or improving",
-												},
-												immediateHazards: {
-													type: "array",
-													items: { type: "string" },
-													description: "List of immediate hazards for responders",
-												},
-												additionalInfo: {
-													type: "string",
-													description: "Any additional critical information",
-												},
-											},
-											required: [
-												"locationConfirmed",
-												"peopleAffected",
-												"currentStatus",
-												"immediateHazards",
-											],
-										},
-									},
-								},
-							],
-						},
-						firstMessage: emergencyContext.firstMessage,
-						// Pass metadata for webhook to extract incidentId
-						metadata: {
-							incidentId: emergencyContext.incidentId,
-							emergencyType: emergency.type,
-							confidence: emergency.confidence,
-						},
-					};
+					// Check for assistant ID
+					const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
+					if (!assistantId) {
+						addDebugLog("❌ No assistant ID configured");
+						setStatus("Error: VAPI assistant not configured");
+						return;
+					}
 
 					try {
-						// Add 10 second delay before starting call
-						addDebugLog("⏳ Waiting 10 seconds before initiating call...");
-						setStatus("Emergency detected - call starting in 10 seconds");
+						// Add 14 second delay before starting call
+						addDebugLog("⏳ Waiting 14 seconds before initiating call...");
+						setStatus("Emergency detected - call starting in 14 seconds");
 						
-						setTimeout(() => {
+						setTimeout(async () => {
 							if (!vapiRef.current) {
 								addDebugLog("❌ VAPI not available after delay");
 								detectionLockedRef.current = false;
 								return;
 							}
-							// Start call with transient configuration
-							vapiRef.current.start(config);
+							
+							// Start call with assistant ID and metadata
+							addDebugLog(`🚀 Starting VAPI call with assistant ${assistantId}`);
+							await vapiRef.current.start(assistantId, {
+								metadata: {
+									incidentId: emergencyContext.incidentId,
+									emergencyType: emergency.type,
+									confidence: emergency.confidence,
+									description: emergency.description,
+									severity: emergency.severity,
+								},
+							});
 							addDebugLog("📞 VAPI call initiated with transient config");
 							setStatus("Emergency call in progress");
-						}, 10000);
+						}, 14000);
 					} catch (callError: any) {
 						console.error('[VAPI] Failed to start call:', callError);
 						addDebugLog(`❌ Call start failed: ${callError.message || 'Unknown error'}`);
@@ -736,7 +731,7 @@ export default function StreamPage() {
 					// Store incident ID for later use
 					currentIncidentIdRef.current = result.analysis.incidentId;
 
-					// Initiate VAPI web call with SAMPLE protocol
+					// Initiate VAPI web call with assistant ID
 					try {
 						// Use the initialized VAPI instance
 						if (!vapiRef.current) {
@@ -744,167 +739,44 @@ export default function StreamPage() {
 							return;
 						}
 
-						// Generate SAMPLE protocol prompt
-						addDebugLog("📝 Generating SAMPLE assessment prompt...");
+						// Check for assistant ID
+						const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
+						if (!assistantId) {
+							addDebugLog("❌ No assistant ID configured");
+							setStatus("Error: VAPI assistant not configured");
+							return;
+						}
 
-						addDebugLog("📞 Starting SAMPLE assessment call...");
-						setStatus("SAMPLE assessment - please speak");
+						addDebugLog("📞 Preparing SAMPLE assessment call...");
+						setStatus("SAMPLE assessment - call starting soon");
 
-						// Use transient assistant configuration with SAMPLE protocol
-						const config: any = {
-							name: `SAMPLE-${result.analysis.incidentId}`,
-							transcriber: {
-								provider: "deepgram",
-								model: "nova-2",
-								language: "en",
-							},
-							model: {
-								provider: "openai",
-								model: "gpt-4o",
-								messages: [
-								],
-								tools: [
-									{
-										type: "function",
-										function: {
-											name: "endCall",
-											description: "End the emergency assessment call after completing the SAMPLE report",
-											parameters: {
-												type: "object",
-												properties: {},
-											},
-										},
-									},
-									{
-										type: "function",
-										function: {
-											name: "submitSampleReport",
-											description: "Submit the completed SAMPLE assessment to the system",
-											parameters: {
-												type: "object",
-												properties: {
-													patientStatus: {
-														type: "string",
-														enum: ["conscious", "unconscious", "partially_responsive"],
-													},
-													signsSymptoms: {
-														type: "object",
-														properties: {
-															patientReported: { type: "string" },
-															observedSigns: { type: "array", items: { type: "string" } },
-														},
-														required: ["patientReported", "observedSigns"],
-													},
-													allergies: {
-														type: "object",
-														properties: {
-															known: { type: "array", items: { type: "string" } },
-															unknown: { type: "boolean" },
-														},
-														required: ["known", "unknown"],
-													},
-													medications: {
-														type: "object",
-														properties: {
-															current: {
-																type: "array",
-																items: {
-																	type: "object",
-																	properties: {
-																		name: { type: "string" },
-																		lastTaken: { type: "string" },
-																	},
-																},
-															},
-															unknown: { type: "boolean" },
-														},
-														required: ["current", "unknown"],
-													},
-													preExistingConditions: {
-														type: "object",
-														properties: {
-															conditions: { type: "array", items: { type: "string" } },
-															unknown: { type: "boolean" },
-														},
-														required: ["conditions", "unknown"],
-													},
-													lastOralIntake: {
-														type: "object",
-														properties: {
-															food: { type: "string" },
-															time: { type: "string" },
-															unknown: { type: "boolean" },
-														},
-														required: ["unknown"],
-													},
-													eventsLeadingUp: {
-														type: "object",
-														properties: {
-															description: { type: "string" },
-															activity: { type: "string" },
-															previousOccurrence: { type: "boolean" },
-														},
-														required: ["description", "previousOccurrence"],
-													},
-													focusedChecks: {
-														type: "object",
-														properties: {
-															fastScreen: {
-																type: "object",
-																properties: {
-																	faceSymmetry: { type: "string" },
-																	armStrength: { type: "string" },
-																	speechClarity: { type: "string" },
-																},
-															},
-															bloodSugarClue: { type: "string" },
-															heatExertionClue: { type: "string" },
-														},
-													},
-													transcript: { type: "string" },
-													summary: { type: "string" },
-												},
-												required: [
-													"patientStatus",
-													"signsSymptoms",
-													"allergies",
-													"medications",
-													"preExistingConditions",
-													"lastOralIntake",
-													"eventsLeadingUp",
-													"transcript",
-													"summary",
-												],
-											},
-										},
-									},
-								],
-							},
-							// Pass metadata
-							metadata: {
-								incidentId: result.analysis.incidentId,
-								emergencyType: highConfidence.type,
-								confidence: highConfidence.confidence,
-								protocol: "SAMPLE",
-							},
-						};
-
-						// Add 10 second delay before starting call
-						addDebugLog("⏳ Waiting 10 seconds before initiating SAMPLE call...");
-						setStatus("Emergency detected - SAMPLE assessment starting in 10 seconds");
+						// Add 14 second delay before starting call
+						addDebugLog("⏳ Waiting 14 seconds before initiating SAMPLE call...");
+						setStatus("Emergency detected - SAMPLE assessment starting in 14 seconds");
 						
-						setTimeout(() => {
+						setTimeout(async () => {
 							if (!vapiRef.current) {
 								addDebugLog("❌ VAPI not available after delay");
 								detectionLockedRef.current = false;
 								currentIncidentIdRef.current = null;
 								return;
 							}
-							// Start call with SAMPLE configuration
-							vapiRef.current.start(config);
+							
+							// Start call with assistant ID and metadata
+							addDebugLog(`🚀 Starting SAMPLE call with assistant ${assistantId}`);
+							await vapiRef.current.start(assistantId, {
+								metadata: {
+									incidentId: result.analysis.incidentId,
+									emergencyType: highConfidence.type,
+									confidence: highConfidence.confidence,
+									description: highConfidence.description,
+									severity: highConfidence.severity,
+									protocol: "SAMPLE",
+								},
+							});
 							addDebugLog("✅ SAMPLE assessment call started");
 							setStatus("SAMPLE assessment - please speak");
-						}, 10000);
+						}, 14000);
 					} catch (vapiError: any) {
 						console.error("[VAPI] Call preparation/start error:", vapiError);
 						addDebugLog(`❌ VAPI error: ${vapiError.message || 'Unknown error'}`);
@@ -1076,6 +948,30 @@ export default function StreamPage() {
 									<Square className="w-5 h-5" />
 									Disconnect Feed
 								</button>
+							)}
+
+							{/* Audio Output Selection */}
+							{availableAudioOutputs.length > 0 && (
+								<div>
+									<label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
+										<Volume2 className="w-4 h-4" />
+										Audio Output (Speaker)
+									</label>
+									<select
+										value={selectedAudioOutputId || ''}
+										onChange={(e) => setSelectedAudioOutputId(e.target.value)}
+										className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+									>
+										{availableAudioOutputs.map((output) => (
+											<option key={output.deviceId} value={output.deviceId}>
+												{output.label || `Output ${output.deviceId.substring(0, 8)}...`}
+											</option>
+										))}
+									</select>
+									<p className="mt-1 text-xs text-gray-500">
+										Select speaker for emergency calls
+									</p>
+								</div>
 							)}
 
 							{/* Status */}

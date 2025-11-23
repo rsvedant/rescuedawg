@@ -8,7 +8,6 @@
  * @module
  */
 
-import type * as ai from "../ai.js";
 import type * as cvProcessing from "../cvProcessing.js";
 import type * as departmentChat from "../departmentChat.js";
 import type * as files from "../files.js";
@@ -41,7 +40,6 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
-  ai: typeof ai;
   cvProcessing: typeof cvProcessing;
   departmentChat: typeof departmentChat;
   files: typeof files;

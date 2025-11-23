@@ -9,7 +9,6 @@ import type { Id } from "@rescuedawg/backend/convex/_generated/dataModel";
 
 interface EmergencyContext {
 	incidentId: string;
-	systemPrompt: string;
 	firstMessage: string;
 	emergency: {
 		type: string;

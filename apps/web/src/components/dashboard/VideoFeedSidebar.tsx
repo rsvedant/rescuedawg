@@ -143,7 +143,7 @@ export function VideoFeedSidebar() {
 					{/* LiveKit Feeds (Dog View) */}
 					{feeds && feeds.length > 0 ? (
 						feeds.map((feed) => (
-							<div key={feed.feedId} className="shrink-0 w-[650px]">
+							<div key={`${feed.feedId}-${feed._creationTime}`} className="shrink-0 w-[650px]">
 								<FeedCard feed={feed} />
 							</div>
 						))
@@ -163,6 +163,7 @@ export function VideoFeedSidebar() {
 
 function FeedCard({ feed }: { feed: any }) {
 	const participants = useParticipants();
+	const [refreshKey, setRefreshKey] = useState(0);
 
 	// Find participant matching this feed
 	const participant = participants.find(
@@ -173,6 +174,14 @@ function FeedCard({ feed }: { feed: any }) {
 	const videoTrackPublication = participant?.videoTrackPublications.size
 		? [...participant.videoTrackPublications.values()][0]
 		: null;
+
+	// Force refresh when participant or video track changes
+	useEffect(() => {
+		if (videoTrackPublication?.isSubscribed) {
+			console.log(`[VideoFeed] Refreshing feed ${feed.feedId}`);
+			setRefreshKey(prev => prev + 1);
+		}
+	}, [participant?.sid, videoTrackPublication?.trackSid, videoTrackPublication?.isSubscribed, feed.feedId]);
 
 	return (
 		<div
@@ -186,6 +195,7 @@ function FeedCard({ feed }: { feed: any }) {
 			<div className="relative aspect-video bg-muted">
 				{videoTrackPublication && videoTrackPublication.isSubscribed ? (
 					<VideoTrack
+						key={`${feed.feedId}-${refreshKey}`}
 						trackRef={{
 							participant: participant!,
 							source: Track.Source.Camera,

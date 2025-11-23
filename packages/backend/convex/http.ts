@@ -46,45 +46,6 @@ http.route({
 	}),
 });
 
-// Handle CV results from external service
-http.route({
-	path: "/cv-webhook",
-	method: "POST",
-	handler: httpAction(async (ctx, request) => {
-		const signature = request.headers.get("x-cv-signature");
-		const secretKey = process.env.CV_WEBHOOK_SECRET;
-
-		// TODO: Verify webhook signature
-		// if (signature !== expectedSignature) {
-		//   return new Response("Unauthorized", { status: 401 });
-		// }
-
-		const payload = await request.json();
-
-		try {
-			// Store CV results
-			await ctx.runMutation(api.cvProcessing.handleCVResults, {
-				incidentId: payload.incidentId as any,
-				analysisType: payload.type,
-				results: payload.results,
-				confidence: payload.confidence,
-				processingTime: payload.processingTime,
-			});
-
-			return new Response(JSON.stringify({ success: true }), {
-				status: 200,
-				headers: { "Content-Type": "application/json" },
-			});
-		} catch (error: any) {
-			console.error("CV webhook error:", error);
-			return new Response(JSON.stringify({ error: error.message }), {
-				status: 500,
-				headers: { "Content-Type": "application/json" },
-			});
-		}
-	}),
-});
-
 // VAPI Webhook - Handle call events
 http.route({
 	path: "/vapi-webhook",
@@ -213,17 +174,6 @@ http.route({
 					});
 
 					console.log("[VAPI Webhook] ✅ Transcript saved");
-
-					// Trigger Grok analysis with VAPI data
-					try {
-						await ctx.runAction(api.ai.analyzeIncidentWithVapiData, {
-							incidentId,
-						});
-						console.log("[VAPI Webhook] ✅ Triggered Grok analysis");
-					} catch (analysisError: any) {
-						console.error("[VAPI Webhook] ❌ Grok analysis failed:", analysisError.message);
-						// Continue even if analysis fails
-					}
 				} else {
 					console.error("[VAPI Webhook] ❌ No incident ID found - cannot save transcript!");
 				}
